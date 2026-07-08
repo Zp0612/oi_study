@@ -184,19 +184,59 @@ if [ ${#note_files[@]} -gt 0 ]; then
     ((commit_count++))
 fi
 
-# ---- 8. 兜底：剩余改动 ----
-# 重新检查，因为上面可能漏了（如 .gitkeep 删除、README.md 改动等）
-remaining=$(git status --porcelain 2>/dev/null | grep -v '^$' | wc -l || echo 0)
-if [ "$remaining" -gt 0 ]; then
-    leftovers=$(git status --porcelain | cut -c4- | grep -v '^$' | head -5 | tr '\n' ' ')
-    if $DRY_RUN; then
-        echo -e "  ${CYAN}[预览]${NC} chore: 其他改动 ($leftovers...)"
+# ---- 8. 兜底：仅提交已知项目文件，未知文件跳过并警告 ----
+# 白名单：根目录下允许自动提交的文件
+SAFE_FILES=("README.md" "push.sh" ".gitignore")
+
+remaining=$(git status --porcelain 2>/dev/null | grep -v '^$' || true)
+safe_to_commit=()
+unknown_files=()
+
+while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    f=$(echo "$line" | cut -c4-)
+    [[ "$f" == *" -> "* ]] && f="${f##* -> }"
+
+    # 检查文件是否属于已处理的问题/模板/笔记目录
+    already_handled=false
+    if [ ${#sorted_dirs[@]} -gt 0 ]; then
+        for d in "${sorted_dirs[@]}"; do
+            [[ "$f" == "$d"* ]] && already_handled=true && break
+        done
+    fi
+    $already_handled && continue
+
+    # 检查是否在白名单
+    is_safe=false
+    for sf in "${SAFE_FILES[@]}"; do
+        [[ "$f" == "$sf" ]] && is_safe=true && break
+    done
+
+    if $is_safe; then
+        safe_to_commit+=("$f")
     else
-        echo -e "${YELLOW}📝 其他改动${NC}"
-        git add -A
+        unknown_files+=("$f")
+    fi
+done <<< "$remaining"
+
+if [ ${#safe_to_commit[@]} -gt 0 ]; then
+    if $DRY_RUN; then
+        echo -e "  ${CYAN}[预览]${NC} chore: ${safe_to_commit[*]}"
+    else
+        echo -e "${YELLOW}📝 项目文件：${safe_to_commit[*]}${NC}"
+        git add "${safe_to_commit[@]}"
         git commit -m "chore: 更新项目文件"
     fi
     ((commit_count++))
+fi
+
+if [ ${#unknown_files[@]} -gt 0 ]; then
+    echo -e "${RED}⚠️  以下文件未被识别，跳过上传：${NC}"
+    for f in "${unknown_files[@]}"; do
+        echo -e "${RED}      $f${NC}"
+    done
+    echo -e "${RED}   （如需上传，请放入 problems/ templates/ 或 notes/ 目录）${NC}"
+    echo ""
 fi
 
 # ---- 9. 推送 ----

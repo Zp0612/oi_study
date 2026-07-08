@@ -3,6 +3,18 @@
 *.out
 *.o
 *.obj
+a.out
+a.exe
+
+# 测试数据
+*.in
+*.ans
+*.txt
+
+# 临时文件
+temp*.cpp
+tmp*.cpp
+*.tmp
 
 # IDE
 .vscode/
