@@ -158,6 +158,24 @@ infer_source() {
 # ---- 推断难度 ----
 infer_difficulty() {
     local rel="${1#problems/}"
+    local src="${rel%%/*}"
+
+    # 洛谷使用自己的难度体系
+    if [ "$src" = "luogu" ]; then
+        local parent diff_dir
+        parent=$(dirname "$rel")
+        diff_dir=$(basename "$parent")
+        case "$diff_dir" in
+            easy)       echo "入门" ;;
+            popularize) echo "普及−" ;;
+            advanced)   echo "提高+/省选−" ;;
+            election)   echo "省选/NOI−" ;;
+            *)          echo "$diff_dir" ;;
+        esac
+        return
+    fi
+
+    # 其他来源使用通用 easy/medium/hard
     case "$rel" in
         */easy/*)   echo "Easy" ;;
         */medium/*) echo "Medium" ;;
