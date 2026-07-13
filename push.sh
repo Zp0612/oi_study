@@ -82,10 +82,17 @@ while IFS= read -r line; do
         file="${file##* -> }"
     fi
 
+    # 去掉目录路径末尾的 /（git status 对未跟踪目录会加 /）
+    file="${file%/}"
+
     # 分类：用 dirname 提取问题目录，支持任意深度
     if [[ "$file" == problems/*/* ]]; then
-        # 文件所在目录即为题目目录
-        prob_dir=$(dirname "$file")
+        # 如果是目录（整个目录未被跟踪），直接用路径本身；否则用文件所在目录
+        if [[ -d "$file" ]]; then
+            prob_dir="$file"
+        else
+            prob_dir=$(dirname "$file")
+        fi
         problem_dirs["$prob_dir"]=1
     elif [[ "$file" == templates/* ]] && [[ "$file" != templates/.gitkeep ]]; then
         template_files+=("$file")
@@ -94,7 +101,7 @@ while IFS= read -r line; do
     elif [[ "$file" != .gitkeep ]] && [[ "$file" != */.gitkeep ]]; then
         other_files+=("$file")
     fi
-done < <(git status --porcelain)
+done < <(git -c core.quotePath=false status --porcelain)
 
 # ---- 4. 提取题名的通用函数 ----
 get_problem_name() {
@@ -458,7 +465,7 @@ for dir in "${sorted_dirs[@]}"; do
         while [[ "$parent" == problems/*/* ]]; do
             parent=$(dirname "$parent")
             gk="$parent/.gitkeep"
-            if git status --porcelain "$gk" 2>/dev/null | grep -q '^[ D]'; then
+            if git -c core.quotePath=false status --porcelain "$gk" 2>/dev/null | grep -q '^[ D]'; then
                 git add "$gk" 2>/dev/null || true
             fi
         done
@@ -501,7 +508,7 @@ fi
 # 白名单：根目录下允许自动提交的文件
 SAFE_FILES=("README.md" "push.sh" ".gitignore")
 
-remaining=$(git status --porcelain 2>/dev/null | grep -v '^$' || true)
+remaining=$(git -c core.quotePath=false status --porcelain 2>/dev/null | grep -v '^$' || true)
 safe_to_commit=()
 unknown_files=()
 
